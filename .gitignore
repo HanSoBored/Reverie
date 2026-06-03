@@ -1,0 +1,18 @@
+# Build artifacts
+build/
+*.o
+*.so
+*.a
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# NDK local
+local.properties
