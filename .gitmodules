@@ -1,0 +1,3 @@
+[submodule "deps/Android-Mem-Kit"]
+	path = deps/Android-Mem-Kit
+	url = https://github.com/HanSoBored/Android-Mem-Kit.git

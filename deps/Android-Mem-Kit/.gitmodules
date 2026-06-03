@@ -1,0 +1,6 @@
+[submodule "deps/shadowhook"]
+	path = deps/shadowhook
+	url = https://github.com/bytedance/android-inline-hook.git
+[submodule "deps/xdl"]
+	path = deps/xdl
+	url = https://github.com/hexhacking/xdl.git
