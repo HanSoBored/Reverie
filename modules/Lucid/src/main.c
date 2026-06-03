@@ -4,11 +4,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
-#include <dlfcn.h>
 #include <stdio.h>
 
 #include "memkit.h"
-#include "shadowhook.h"
 
 #define LOG_TAG "Lucid"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -19,34 +17,6 @@ static int (*orig_SSL_read)(void*, void*, int) = NULL;
 static int (*orig_SSL_write)(void*, const void*, int) = NULL;
 
 static __thread int g_re = 0;
-static char g_path[512] = {0};
-static bool g_path_ok = false;
-
-extern void *__real_dlopen(const char*, int);
-extern int __real_sh_linker_init(void);
-
-void *__wrap_dlopen(const char* f, int fl) {
-    if (f && g_path_ok) {
-        const char* b = strrchr(f, '/'); if (!b) b = f; else b++;
-        if (strcmp(b, "libshadowhook_nothing.so") == 0)
-            return __real_dlopen(g_path, fl);
-    }
-    return __real_dlopen(f, fl);
-}
-
-int __wrap_sh_linker_init(void) {
-    int r = __real_sh_linker_init();
-    if (r) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "linker_init fail %d", r);
-    return 0;
-}
-
-__attribute__((noinline)) static void save_path(void) {
-    Dl_info i;
-    if (dladdr((void*)save_path, &i) && i.dli_fname) {
-        size_t l = strlen(i.dli_fname);
-        if (l < sizeof(g_path) - 1) { memcpy(g_path, i.dli_fname, l+1); g_path_ok = true; }
-    }
-}
 
 // ─── Output ───────────────────────────────────────────────────────────
 
@@ -156,8 +126,6 @@ static int my_SSL_write(void* s, const void* b, int n) {
 
 static void* init(void* a) {
     (void)a;
-    usleep(500000);
-    save_path();
 
     int r = memkit_hook_init(SHADOWHOOK_MODE_UNIQUE, false);
     if (r) { LOGI("Hook init fail: %d", r); return NULL; }

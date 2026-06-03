@@ -28,6 +28,7 @@ set(SH_DIR ${MEMKIT_DIR}/deps/shadowhook/shadowhook)
 
 include_directories(
     ${MEMKIT_DIR}/include
+    ${MEMKIT_DIR}/src
     ${XDL_DIR}/src/main/cpp/include
     ${SH_DIR}/src/main/cpp/include
     ${SH_DIR}/src/main/cpp
@@ -36,6 +37,7 @@ include_directories(
     ${SH_DIR}/src/main/cpp/third_party/bsd
     ${SH_DIR}/src/main/cpp/third_party/xdl
     ${SH_DIR}/src/main/cpp/third_party/lss
+    ${CMAKE_CURRENT_BINARY_DIR}/gen
 )
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wno-macro-redefined -fdiagnostics-format=clang")
@@ -79,6 +81,38 @@ add_library(shadowhook STATIC
 )
 target_compile_definitions(shadowhook PRIVATE __ANDROID__API__=35)
 
+# Build libshadowhook_nothing.so (auto-extracted at runtime for Android 15+)
+add_library(shadowhook_nothing SHARED
+    ${SH_DIR}/src/main/cpp/nothing/sh_nothing.c
+)
+target_compile_options(shadowhook_nothing PRIVATE
+    -Oz -Weverything -Werror -Wno-missing-include-dirs -fno-ident -fno-unwind-tables
+    -fno-asynchronous-unwind-tables
+)
+set(_shl
+    "-Wl,--strip-all" "-Wl,--as-needed" "-Wl,--hash-style=sysv"
+    "-Wl,--build-id=none" "-Wl,-nostdlib" "-nostartfiles"
+    "-nodefaultlibs" "-Wl,-soname,libshadowhook_nothing.so"
+)
+if(ANDROID_ABI STREQUAL "arm64-v8a")
+    list(APPEND _shl "-Wl,-z,max-page-size=16384")
+endif()
+target_link_options(shadowhook_nothing PRIVATE ${_shl})
+unset(_shl)
+
+# Generate nothing_embed.h from compiled libshadowhook_nothing.so
+set(NOTHING_EMBED_H_PATH "${CMAKE_CURRENT_BINARY_DIR}/gen/nothing_embed.h")
+add_custom_command(
+    OUTPUT ${NOTHING_EMBED_H_PATH}
+    COMMAND ${CMAKE_COMMAND}
+        -DINPUT_FILE="$<TARGET_FILE:shadowhook_nothing>"
+        -DOUTPUT_FILE=${NOTHING_EMBED_H_PATH}
+        -P ${MEMKIT_DIR}/cmake/gen_nothing_header.cmake
+    DEPENDS shadowhook_nothing
+    COMMENT "Generating nothing_embed.h from libshadowhook_nothing.so"
+)
+add_custom_target(generate_nothing_embed DEPENDS ${NOTHING_EMBED_H_PATH})
+
 add_library(lucid SHARED
     ${MEMKIT_DIR}/src/memory.c
     ${MEMKIT_DIR}/src/hooking.c
@@ -90,8 +124,14 @@ add_library(lucid SHARED
     ${MEMKIT_DIR}/src/il2cpp.c
     ${MEMKIT_DIR}/src/il2cpp_safe.c
     ${MEMKIT_DIR}/src/xdl_wrapper.c
+    ${MEMKIT_DIR}/src/nothing_path.c
+    ${MEMKIT_DIR}/src/shadowhook_override.c
     src/main.c
 )
+
+if(TARGET generate_nothing_embed)
+    add_dependencies(lucid generate_nothing_embed)
+endif()
 
 target_link_libraries(lucid xdl shadowhook log android)
 
