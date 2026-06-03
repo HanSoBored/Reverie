@@ -1,4 +1,5 @@
 # Build artifacts
+lib/
 build/
 *.o
 *.so
